@@ -183,6 +183,9 @@
       "type": "resource/project"
     }]
   }, {
+    "title": "Speech",
+    "type": "speech"
+  }, {
     "title": "Storage",
     "type": "storage",
     "nav": [{

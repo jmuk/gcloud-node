@@ -43,6 +43,7 @@ link('common');
   'bigquery',
   'language',
   'prediction',
+  'speech',
   'vision'
 ].forEach(function(packageName) {
   link(packageName, '@google-cloud/common');
@@ -73,6 +74,7 @@ link('logging');
   'prediction',
   'pubsub',
   'resource',
+  'speech',
   'storage',
   'translate',
   'vision'
