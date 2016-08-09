@@ -915,5 +915,6 @@ Speech.detectEncoding_ = function(filename) {
 };
 
 Speech.Operation = Operation;
+Speech.v1 = require('./v1');
 
 module.exports = Speech;
