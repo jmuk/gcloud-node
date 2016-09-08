@@ -27,7 +27,6 @@
 /* jscs: disable maximumLineLength */
 'use strict';
 
-var arguejs = require('arguejs');
 var configData = require('./publisher_client_config');
 var extend = require('extend');
 var gax = require('google-gax');
@@ -207,9 +206,9 @@ PublisherApi.prototype.matchTopicFromTopicName =
  *   underscores (`_`), periods (`.`), tildes (`~`), plus (`+`) or percent
  *   signs (`%`). It must be between 3 and 255 characters in length, and it
  *   must not start with `"goog"`.
- * @param {gax.CallOptions=} options
- *   Overrides the default settings for this call, e.g, timeout,
- *   retries, etc.
+ * @param {Object=} options
+ *   Optional parameters. You can override the default settings for this call, e.g, timeout,
+ *   retries, paginations, etc, See {@link external:"gax.CallOptions"} for the details.
  * @param {function(?Error, ?Object)=} callback
  *   The function which will be called with the result of the API call.
  *
@@ -229,16 +228,18 @@ PublisherApi.prototype.matchTopicFromTopicName =
  *     // doThingsWith(response)
  * });
  */
-PublisherApi.prototype.createTopic = function createTopic() {
-  var args = arguejs({
-    name: String,
-    options: [gax.CallOptions],
-    callback: [Function]
-  }, arguments);
+PublisherApi.prototype.createTopic = function createTopic(
+    name,
+    options,
+    callback) {
+  if (options instanceof Function && callback === undefined) {
+    callback = options;
+    options = {};
+  }
   var req = {
-    name: args.name
+    name: name
   };
-  return this._createTopic(req, args.options, args.callback);
+  return this._createTopic(req, options, callback);
 };
 
 /**
@@ -252,9 +253,9 @@ PublisherApi.prototype.createTopic = function createTopic() {
  *   The messages to publish.
  *
  *   This object should have the same structure as [PubsubMessage]{@link PubsubMessage}
- * @param {gax.CallOptions=} options
- *   Overrides the default settings for this call, e.g, timeout,
- *   retries, etc.
+ * @param {Object=} options
+ *   Optional parameters. You can override the default settings for this call, e.g, timeout,
+ *   retries, paginations, etc, See {@link external:"gax.CallOptions"} for the details.
  * @param {function(?Error, ?Object)=} callback
  *   The function which will be called with the result of the API call.
  *
@@ -281,18 +282,20 @@ PublisherApi.prototype.createTopic = function createTopic() {
  *     // doThingsWith(response)
  * });
  */
-PublisherApi.prototype.publish = function publish() {
-  var args = arguejs({
-    topic: String,
-    messages: Array,
-    options: [gax.CallOptions],
-    callback: [Function]
-  }, arguments);
+PublisherApi.prototype.publish = function publish(
+    topic,
+    messages,
+    options,
+    callback) {
+  if (options instanceof Function && callback === undefined) {
+    callback = options;
+    options = {};
+  }
   var req = {
-    topic: args.topic,
-    messages: args.messages
+    topic: topic,
+    messages: messages
   };
-  return this._publish(req, args.options, args.callback);
+  return this._publish(req, options, callback);
 };
 
 /**
@@ -300,9 +303,9 @@ PublisherApi.prototype.publish = function publish() {
  *
  * @param {string} topic
  *   The name of the topic to get.
- * @param {gax.CallOptions=} options
- *   Overrides the default settings for this call, e.g, timeout,
- *   retries, etc.
+ * @param {Object=} options
+ *   Optional parameters. You can override the default settings for this call, e.g, timeout,
+ *   retries, paginations, etc, See {@link external:"gax.CallOptions"} for the details.
  * @param {function(?Error, ?Object)=} callback
  *   The function which will be called with the result of the API call.
  *
@@ -322,16 +325,18 @@ PublisherApi.prototype.publish = function publish() {
  *     // doThingsWith(response)
  * });
  */
-PublisherApi.prototype.getTopic = function getTopic() {
-  var args = arguejs({
-    topic: String,
-    options: [gax.CallOptions],
-    callback: [Function]
-  }, arguments);
+PublisherApi.prototype.getTopic = function getTopic(
+    topic,
+    options,
+    callback) {
+  if (options instanceof Function && callback === undefined) {
+    callback = options;
+    options = {};
+  }
   var req = {
-    topic: args.topic
+    topic: topic
   };
-  return this._getTopic(req, args.options, args.callback);
+  return this._getTopic(req, options, callback);
 };
 
 /**
@@ -339,44 +344,61 @@ PublisherApi.prototype.getTopic = function getTopic() {
  *
  * @param {string} project
  *   The name of the cloud project that topics belong to.
- * @param {Object=} otherArgs
- * @param {number=} otherArgs.pageSize
+ * @param {Object=} options
+ *   Optional parameters. You can override the default settings for this call, e.g, timeout,
+ *   retries, paginations, etc, See {@link external:"gax.CallOptions"} for the details.
+ *
+ *   In addition, options may contain the following optional parameters.
+ * @param {number=} options.pageSize
  *   The maximum number of resources contained in the underlying API
  *   response. If page streaming is performed per-resource, this
  *   parameter does not affect the return value. If page streaming is
  *   performed per-page, this determines the maximum number of
  *   resources in a page.
- * @param {gax.CallOptions=} options
- *   Overrides the default settings for this call, e.g, timeout,
- *   retries, etc.
- * @returns {Stream}
- *   An object stream. By default, this emits an object representing
+ *
+ * @param {function(?Error, ?Object)=} callback
+ *   When specified, the results are not streamed but this callback
+ *   will be called with the response object representing [ListTopicsResponse]{@link ListTopicsResponse}
+ * @returns {Stream|gax.EventEmitter}
+ *   An object stream which emits an object representing
  *   [Topic]{@link Topic} on 'data' event.
- *   This object can also be configured to emit
- *   pages of the responses through the options parameter.
+ *   When the callback is specified or streaming is suppressed through options,
+ *   it will return an event emitter to handle the call status and the callback
+ *   will be called with the response object.
  *
  * @example
  *
  * var api = pubsubV1.publisherApi();
  * var formattedProject = api.projectPath("[PROJECT]");
+ * // Iterate over all elements.
  * api.listTopics(formattedProject).on('data', function(element) {
  *     // doThingsWith(element)
  * });
+ *
+ * // Or obtain the paged response through the callback.
+ * api.listTopics(formattedProject, {flattenPages: false}, function(err, response) {
+ *     if (err) {
+ *         console.error(err);
+ *         return;
+ *     }
+ *     // doThingsWith(response)
+ * })
  */
-PublisherApi.prototype.listTopics = function listTopics() {
-  var args = arguejs({
-    project: String,
-    otherArgs: [Object, {}],
-    options: [gax.CallOptions],
-    callback: [Function]
-  }, arguments);
-  var req = {
-    project: args.project
-  };
-  if ('pageSize' in args.otherArgs) {
-    req.page_size = args.otherArgs.pageSize;
+PublisherApi.prototype.listTopics = function listTopics(
+    project,
+    options,
+    callback) {
+  if (options instanceof Function && callback === undefined) {
+    callback = options;
+    options = {};
   }
-  return this._listTopics(req, args.options, args.callback);
+  var req = {
+    project: project
+  };
+  if ('pageSize' in options) {
+    req.page_size = options.pageSize;
+  }
+  return this._listTopics(req, options, callback);
 };
 
 /**
@@ -384,43 +406,60 @@ PublisherApi.prototype.listTopics = function listTopics() {
  *
  * @param {string} topic
  *   The name of the topic that subscriptions are attached to.
- * @param {Object=} otherArgs
- * @param {number=} otherArgs.pageSize
+ * @param {Object=} options
+ *   Optional parameters. You can override the default settings for this call, e.g, timeout,
+ *   retries, paginations, etc, See {@link external:"gax.CallOptions"} for the details.
+ *
+ *   In addition, options may contain the following optional parameters.
+ * @param {number=} options.pageSize
  *   The maximum number of resources contained in the underlying API
  *   response. If page streaming is performed per-resource, this
  *   parameter does not affect the return value. If page streaming is
  *   performed per-page, this determines the maximum number of
  *   resources in a page.
- * @param {gax.CallOptions=} options
- *   Overrides the default settings for this call, e.g, timeout,
- *   retries, etc.
- * @returns {Stream}
- *   An object stream. By default, this emits a string on 'data' event.
- *   This object can also be configured to emit
- *   pages of the responses through the options parameter.
+ *
+ * @param {function(?Error, ?Object)=} callback
+ *   When specified, the results are not streamed but this callback
+ *   will be called with the response object representing [ListTopicSubscriptionsResponse]{@link ListTopicSubscriptionsResponse}
+ * @returns {Stream|gax.EventEmitter}
+ *   An object stream which emits a string on 'data' event.
+ *   When the callback is specified or streaming is suppressed through options,
+ *   it will return an event emitter to handle the call status and the callback
+ *   will be called with the response object.
  *
  * @example
  *
  * var api = pubsubV1.publisherApi();
  * var formattedTopic = api.topicPath("[PROJECT]", "[TOPIC]");
+ * // Iterate over all elements.
  * api.listTopicSubscriptions(formattedTopic).on('data', function(element) {
  *     // doThingsWith(element)
  * });
+ *
+ * // Or obtain the paged response through the callback.
+ * api.listTopicSubscriptions(formattedTopic, {flattenPages: false}, function(err, response) {
+ *     if (err) {
+ *         console.error(err);
+ *         return;
+ *     }
+ *     // doThingsWith(response)
+ * })
  */
-PublisherApi.prototype.listTopicSubscriptions = function listTopicSubscriptions() {
-  var args = arguejs({
-    topic: String,
-    otherArgs: [Object, {}],
-    options: [gax.CallOptions],
-    callback: [Function]
-  }, arguments);
-  var req = {
-    topic: args.topic
-  };
-  if ('pageSize' in args.otherArgs) {
-    req.page_size = args.otherArgs.pageSize;
+PublisherApi.prototype.listTopicSubscriptions = function listTopicSubscriptions(
+    topic,
+    options,
+    callback) {
+  if (options instanceof Function && callback === undefined) {
+    callback = options;
+    options = {};
   }
-  return this._listTopicSubscriptions(req, args.options, args.callback);
+  var req = {
+    topic: topic
+  };
+  if ('pageSize' in options) {
+    req.page_size = options.pageSize;
+  }
+  return this._listTopicSubscriptions(req, options, callback);
 };
 
 /**
@@ -432,9 +471,9 @@ PublisherApi.prototype.listTopicSubscriptions = function listTopicSubscriptions(
  *
  * @param {string} topic
  *   Name of the topic to delete.
- * @param {gax.CallOptions=} options
- *   Overrides the default settings for this call, e.g, timeout,
- *   retries, etc.
+ * @param {Object=} options
+ *   Optional parameters. You can override the default settings for this call, e.g, timeout,
+ *   retries, paginations, etc, See {@link external:"gax.CallOptions"} for the details.
  * @param {function(?Error)=} callback
  *   The function which will be called with the result of the API call.
  * @returns {gax.EventEmitter} - the event emitter to handle the call
@@ -450,16 +489,18 @@ PublisherApi.prototype.listTopicSubscriptions = function listTopicSubscriptions(
  *     }
  * });
  */
-PublisherApi.prototype.deleteTopic = function deleteTopic() {
-  var args = arguejs({
-    topic: String,
-    options: [gax.CallOptions],
-    callback: [Function]
-  }, arguments);
+PublisherApi.prototype.deleteTopic = function deleteTopic(
+    topic,
+    options,
+    callback) {
+  if (options instanceof Function && callback === undefined) {
+    callback = options;
+    options = {};
+  }
   var req = {
-    topic: args.topic
+    topic: topic
   };
-  return this._deleteTopic(req, args.options, args.callback);
+  return this._deleteTopic(req, options, callback);
 };
 
 function PublisherApiBuilder(gaxGrpc) {
