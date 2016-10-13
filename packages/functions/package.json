@@ -1,0 +1,59 @@
+{
+  "name": "@google-cloud/functions",
+  "version": "0.1.0",
+  "author": "Google Inc.",
+  "description": "Google Cloud Functions Client Library for Node.js",
+  "contributors": [
+    {
+      "name": "Jason Dobry",
+      "email": "jason.dobry@gmail.com"
+    },
+    {
+      "name": "Stephen Sawchuk",
+      "email": "sawchuk@gmail.com"
+    }
+  ],
+  "main": "./src/index.js",
+  "files": [
+    "src",
+    "AUTHORS",
+    "CONTRIBUTORS",
+    "COPYING"
+  ],
+  "repository": "googlecloudplatform/google-cloud-node",
+  "keywords": [
+    "google apis client",
+    "google api client",
+    "google apis",
+    "google api",
+    "google",
+    "google cloud platform",
+    "google cloud",
+    "cloud",
+    "google cloud functions",
+    "cloud functions",
+    "functions"
+  ],
+  "dependencies": {
+    "@google-cloud/common": "^0.7.1",
+    "@google-cloud/storage": "^0.4.0",
+    "archiver": "^1.2.0",
+    "events-intercept": "^2.0.0",
+    "extend": "^3.0.0",
+    "google-gax": "^0.8.1",
+    "node-uuid": "^1.4.7"
+  },
+  "devDependencies": {
+    "async": "^2.1.2",
+    "mocha": "^3.1.2"
+  },
+  "scripts": {
+    "publish-module": "node ../../scripts/publish.js functions",
+    "test": "mocha test/*.js",
+    "system-test": "mocha system-test/*.js --no-timeouts --bail"
+  },
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=0.12.0"
+  }
+}
