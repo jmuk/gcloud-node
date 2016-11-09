@@ -19,7 +19,6 @@
 var assert = require('assert');
 var async = require('async');
 var extend = require('extend');
-var is = require('is');
 var path = require('path');
 var uuid = require('node-uuid');
 
@@ -49,6 +48,7 @@ describe('Functions', function() {
   var functions = new Functions(env);
   var stageBucket = storage.bucket(STAGE_BUCKET_NAME);
   var bucket = storage.bucket(BUCKET_NAME);
+  console.log(HTTP_FUNC, GCS_FUNC, PUBSUB_FUNC);
 
   before(function(done) {
     async.waterfall([
@@ -79,7 +79,7 @@ describe('Functions', function() {
   });
 
   describe('cloudfunction', function() {
-    it('should get and set name', function() {
+    it.only('should get and set name', function() {
       var cloudfunction = functions.cloudfunction(shortName, {
         projectId: projectId,
         region: region
@@ -107,6 +107,7 @@ describe('Functions', function() {
         .then(function(results) {
           var operation = results[0];
           var apiResponse = results[1];
+          assert.equal(operation.name, apiResponse.name);
 
           return operation.promise();
         })

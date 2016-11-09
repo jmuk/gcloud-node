@@ -21,34 +21,32 @@
 'use strict';
 
 var common = require('@google-cloud/common');
+var eventsIntercept = require('events-intercept');
 var extend = require('extend');
 var is = require('is');
-
-var FUNCTION_PATH_REGEX = /^projects\/(.+)\/locations\/(.+)\/functions\/(.+)$/i;
 
 /*! Developer Documentation
  *
  * @param {module:functions} functions - Functions instance.
  * @param {string} name - Name of the function
- * @param {options=} options - Configuration object.
- * @param {string} options.projectId - ID of the project where the function is
+ * @param {object=} config - Configuration object.
+ * @param {string} config.projectId - ID of the project where the function is
  *     deployed.
- * @param {string} options.region - Region where the function is deployed.
+ * @param {string} config.region - Region where the function is deployed.
  */
 /**
- * Interact with your Cloud Function. Create a function instance with
- * {module:functions#createFunction}.
+ * Interact with a Cloud Function. Create a Cloud Function function instance
+ * with {module:functions#createFunction}.
  *
  * @alias module:functions/cloudfunction
  * @constructor
  *
- * @param {string} name - Name of the function.
- * @param {object=} config
- * @param {string} config.projectId - ID of the project where the function is
- *     to be deployed.
- * @param {string} config.region - Region where the function is to be deployed.
- *
  * @example
+ * var cloudfunction = functions.cloudfunction('myFunction');
+ *
+ * //-
+ * // Override the projectId and region.
+ * //-
  * var cloudfunction = functions.cloudfunction('myFunction', {
  *   projectId: 'my-awesome-project',
  *   region: 'us-central1'
@@ -127,7 +125,7 @@ CloudFunction.prototype.call = function(data, options, callback) {
 /**
  * Create a Cloud Function.
  *
- * @param {object=} config - See {module:functions#createFunction}.
+ * @param {object} config - See {module:functions#createFunction}.
  * @param {function=} callback - The callback function.
  * @param {?error} callback.err - An error returned while making this request.
  * @param {module:functions/operation} callback.operation - An operation object
@@ -159,7 +157,9 @@ CloudFunction.prototype.call = function(data, options, callback) {
  *     var apiResponse = data[1];
  *     return operation.promise();
  *   })
- *   .then(function(cloudfunction) {
+ *   .then(function(data) {
+ *     var cloudfunction = data[0];
+ *     var apiResponse = data[1];
  *     // The Cloud Function was created successfully.
  *   });
  */
@@ -168,7 +168,41 @@ CloudFunction.prototype.create = function(config, callback) {
 };
 
 /**
- * TODO - LRO
+ * Delete a Cloud Function.
+ *
+ * @param {object} options - [Configuration object](#/docs).
+ * @param {function=} callback - The callback function.
+ * @param {?error} callback.err - An error returned while making this request.
+ * @param {module:functions/operation} callback.operation - An operation object
+ *     that can be used to check the status of the request.
+ * @param {object} callback.apiResponse - Raw API response.
+ *
+ * @example
+ * cloudfunction.delete(function(err, operation, apiResponse) {
+ *   if (!err) {
+ *     // The Cloud Function "delete" operation was started successfully.
+ *   }
+ *   operation
+ *     .on('complete', function(apiResponse) {
+ *       // The Cloud Function was deleted successfully.
+ *     })
+ *     .on('error', function(err) {
+ *       // Failed to delete the Cloud Function
+ *     });
+ * });
+ *
+ * //-
+ * // If the callback is omitted, we'll return a Promise.
+ * //-
+ * cloudfunction.delete()
+ *   .then(function(data) {
+ *     var apiResponse = data[0];
+ *     return operation.promise();
+ *   })
+ *   .then(function(data) {
+ *     var apiResponse = data[0];
+ *     // The Cloud Function was deleted successfully.
+ *   });
  */
 CloudFunction.prototype.delete = function(options, callback) {
   var self = this;
@@ -177,27 +211,17 @@ CloudFunction.prototype.delete = function(options, callback) {
     options = {};
   }
 
-  options = extend(options || {}, {
-    projectId: this.functions.projectId,
-    region: this.functions.region
-  });
-
-  var formattedName = this.functions._formatName(
-    options.projectId,
-    options.region,
-    this.name
-  );
-
   this.functions.api.Functions.deleteFunction(
-    formattedName,
+    this.metadata.name,
     options,
     function(err, response) {
       if (err) {
-        err.response = response;
-        callback(err, response);
+        callback(err, null, response);
         return;
       }
-      callback(null, response);
+      var operation = self.functions.operation(response.name);
+      operation.metadata = response;
+      callback(null, operation, response);
     }
   );
 };
@@ -224,7 +248,7 @@ CloudFunction.prototype.delete = function(options, callback) {
  * });
 
  * //-
- * // Or, using promises:
+ * // If the callback is omitted, we'll return a Promise.
  * //-
  *
  * cloudfunction.get()
@@ -240,61 +264,98 @@ CloudFunction.prototype.get = function(options, callback) {
     options = {};
   }
 
-  options = extend(options, {
-    projectId: this.functions.projectId,
-    region: this.functions.region
-  });
-
-  var formattedName = this.functions._formatName(
-    options.projectId,
-    options.region,
-    this.name
-  );
-
   this.functions.api.Functions.getFunction(
-    formattedName,
+    this.metadata.name,
     options,
     function(err, response) {
       if (err) {
         callback(err, null, response);
         return;
       }
-      self.metadata = response;
+      self.metadata = extend(self.metadata || {}, response);
       callback(null, self, response);
-    });
+    }
+  );
 };
 
 /**
- * TODO - LRO
+ * Update a Cloud Function.
+ *
+ * @param {object} config - See {module:functions#createFunction}.
+ * @param {function=} callback - The callback function.
+ * @param {?error} callback.err - An error returned while making this request.
+ * @param {module:functions/operation} callback.operation - An operation object
+ *     that can be used to check the status of the request.
+ * @param {object} callback.apiResponse - Raw API response.
+ *
+ * @example
+ * var config = {};
+ *
+ * cloudfunction.update(config, function(err, operation, apiResponse) {
+ *   if (!err) {
+ *     // The Cloud Function "update" operation was started successfully.
+ *   }
+ *   operation
+ *     .on('complete', function(cloudfunction) {
+ *       // The Cloud Function was updated successfully.
+ *     })
+ *     .on('error', function(err) {
+ *       // Failed to update the Cloud Function
+ *     });
+ * });
+ *
+ * //-
+ * // If the callback is omitted, we'll return a Promise.
+ * //-
+ * cloudfunction.update(config)
+ *   .then(function(data) {
+ *     var operation = data[0];
+ *     var apiResponse = data[1];
+ *     return operation.promise();
+ *   })
+ *   .then(function(data) {
+ *     var cloudfunction = data[0];
+ *     var apiResponse = data[1];
+ *     // The Cloud Function was updated successfully.
+ *   });
  */
-CloudFunction.prototype.update = function(options, callback) {
+CloudFunction.prototype.update = function(config, callback) {
   var self = this;
-  if (is.function(options)) {
-    callback = options;
-    options = {};
+  if (!is.object(config)) {
+    throw new Error('A function configuration object must be provided.');
   }
 
-  extend(this, options, {
-    projectId: this.functions.projectId,
-    region: this.functions.region
-  });
-
-  var formattedName = this.functions._formatName(
-    this.projectId,
-    this.region,
-    this.shortName
-  );
+  var body = this._prepareFunctionBody(this.name, config);
+  this._formatFunctionBody(this.name, body);
 
   this.functions.api.Functions.updateFunction(
-    formattedName,
-    options,
+    this.metadata.name,
+    config,
     function(err, response) {
       if (err) {
-        err.response = response;
-        callback(err, response);
+        callback(err, null, response);
         return;
       }
-      callback(null, response);
+      var operation = self.operation(response.name);
+      operation.metadata = response;
+
+      // Intercept the "complete" event to decode and format the results of the
+      // operation for the user.
+      eventsIntercept.patch(operation);
+      operation.intercept('complete', function(metadata, callback) {
+        var response = metadata.response;
+
+        var cloudfunction;
+        if (response) {
+          var value = response.value;
+          cloudfunction = self.builders.Functions.CloudFunction.decode(value);
+          extend(self.metadata, cloudfunction);
+        }
+
+        callback(null, self, metadata);
+      });
+
+      callback(null, operation, response);
     });
 };
 

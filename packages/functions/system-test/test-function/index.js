@@ -15,17 +15,17 @@
 
 'use strict';
 
-// exports.helloHttp = function helloHttp (req, res) {
+// exports.helloHttp = function helloHttp(req, res) {
 //   res.send(`Hello ${req.body.name}!`);
 // };
 
-// exports.helloPubSub = function helloPubSub (event, callback) {
+// exports.helloPubSub = function helloPubSub(event, callback) {
 //   const pubsubMessage = event.data;
 //   const name = Buffer.from(pubsubMessage.data, 'base64').toString().name;
 //   callback(null, `Hello ${name}!`);
 // };
 
-// exports.helloGCS = function helloGCS (event, callback) {
+// exports.helloGCS = function helloGCS(event, callback) {
 //   const file = event.data;
 //   const isDelete = file.resourceState === 'not_exists';
 
@@ -36,16 +36,16 @@
 //   }
 // };
 
-exports.helloHttp = function helloHttp (req, res) {
+exports.helloHttp = function helloHttp(req, res) {
   res.send(`Hello ${req.body.name}!`);
 };
 
-exports.helloPubSub = function helloPubSub (context, data) {
+exports.helloPubSub = function helloPubSub(context, data) {
   const name = data.name;
-  callback(null, `Hello ${name}!`);
+  context.success(`Hello ${name}!`);
 };
 
-exports.helloGCS = function helloGCS (context, data) {
+exports.helloGCS = function helloGCS(context, data) {
   const name = data.name;
   const isDelete = !!data.timeDeleted;
 

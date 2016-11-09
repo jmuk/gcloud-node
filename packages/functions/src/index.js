@@ -24,7 +24,6 @@ var archiver = require('archiver');
 var common = require('@google-cloud/common');
 var eventsIntercept = require('events-intercept');
 var extend = require('extend');
-var fs = require('fs');
 var is = require('is');
 var lro = require('google-gax').lro;
 var Storage = require('@google-cloud/storage');
@@ -81,7 +80,7 @@ function Functions(options) {
     storageConfig.projectId = options.projectId;
     storageConfig.keyFilename = options.keyFilename;
   }
-  this.storage = Storage(storageConfig);
+  this.storage = new Storage(storageConfig);
 
   var operationsOptions = extend({}, options, {
     servicePath: options.servicePath || 'cloudfunctions.googleapis.com'
@@ -95,6 +94,81 @@ function Functions(options) {
     Operations: this.builders.Operations.operationsApi(operationsOptions)
   };
 }
+
+/**
+ * Format a Cloud Function config object.
+ *
+ * @private
+ *
+ * @return {string}
+ */
+Functions.prototype._formatFunctionBody = function(name, body) {
+  if (body.gcsTrigger) {
+    body.gcsTrigger = this._formatGcsTrigger(body.gcsTrigger);
+  } else if (body.pubsubTrigger) {
+    body.pubsubTrigger = this._formatPubsubTrigger(body.pubsubTrigger);
+  } else if (body.httpsTrigger) {
+    body.httpsTrigger = {
+      url: this._formatHttpsTrigger(
+        body.projectId,
+        body.region,
+        name
+      )
+    };
+  }
+
+  if (body.timeout) {
+    body.timeout = {
+      seconds: body.timeout
+    };
+  }
+
+  delete body.projectId;
+  delete body.region;
+};
+
+/**
+ * Format a gcsTrigger value. A gcsTrigger's value should be in the format of
+ * 'gs://{bucketName}/'.
+ *
+ * @private
+ *
+ * @return {string}
+ */
+Functions.prototype._formatGcsTrigger = function(bucketName) {
+  // Simple check if the name is already formatted.
+  if (bucketName.indexOf('gs://') !== 0) {
+    bucketName = 'gs://' + bucketName;
+  }
+  if (bucketName.lastIndexOf('/') !== bucketName.length - 1) {
+    bucketName = bucketName + '/';
+  }
+  return bucketName;
+};
+
+/**
+ * Format an httpsTrigger value. A httpsTrigger's value should be in the format
+ * of 'https://{region}-{projectId}.cloudfunctions.net/{name}'.
+ *
+ * @private
+ *
+ * @return {string}
+ */
+Functions.prototype._formatHttpsTrigger = function(projectId, region, name) {
+  return 'https://' + region + '-' + projectId + '.cloudfunctions.net/' + name;
+};
+
+/**
+ * Format a Cloud Functions location. A Cloud Functions location's full path is
+ * in the format of 'projects/{projectId}/locations/{region}'.
+ *
+ * @private
+ *
+ * @return {string}
+ */
+Functions.prototype._formatLocation = function(projectId, region) {
+  return this.api.Functions.locationPath(projectId, region);
+};
 
 /**
  * Format the name of a Cloud Function. A Cloud Function's full name is in the
@@ -115,37 +189,6 @@ Functions.prototype._formatName = function(projectId, region, name) {
 };
 
 /**
- * Format a Cloud Functions location. A Cloud Functions location's full path is
- * in the format of 'projects/{projectId}/locations/{region}'.
- *
- * @private
- *
- * @return {string}
- */
-Functions.prototype._formatLocation = function(projectId, region) {
-  return this.api.Functions.locationPath(projectId, region);
-};
-
-/**
- * Format a gcsTrigger value. A gcsTrigger's value should be in the format of
- * 'gs://{bucketName}/'.
- *
- * @private
- *
- * @return {string}
- */
-Functions.prototype._formatGcsTrigger = function(bucketName) {
-  // Simple check if the name is already formatted.
-  if (bucketName.indexOf('gs://') !== 0) {
-    bucketName = 'gs://' + bucketName;
-  }
-  if (bucketName.lastIndexOf('/') !== bucketName.length -1) {
-    bucketName = bucketName + '/';
-  }
-  return bucketName;
-};
-
-/**
  * Format a pubsubTrigger value. A pubsubTrigger's value should be in the format
  * of 'projects/{projectId}/topics/{topicName'.
  *
@@ -162,24 +205,27 @@ Functions.prototype._formatPubsubTrigger = function(projectId, topicName) {
 };
 
 /**
- * Format an httpsTrigger value. A httpsTrigger's value should be in the format
- * of 'https://{region}-{projectId}.cloudfunctions.net/{name}'.
+ * Prepare a Cloud Function config object.
  *
  * @private
  *
  * @return {string}
  */
-Functions.prototype._formatHttpsTrigger = function(projectId, region, name) {
-  return 'https://' + region + '-' + projectId + '.cloudfunctions.net/' + name;
+Functions.prototype._formatFunctionBody = function(name, config) {
+  config = extend({
+    projectId: this.projectId,
+    region: this.region
+  }, config);
+
+  return extend(config, {
+    name: this._formatName(config.projectId, config.region, name)
+  });
 };
 
 /**
- * Format an httpsTrigger value. A httpsTrigger's value should be in the format
- * of 'https://{region}-{projectId}.cloudfunctions.net/{name}'.
+ * Zips up a directory and uploads it to a staging Cloud Storage bucket.
  *
  * @private
- *
- * @return {string}
  */
 Functions.prototype._uploadLocalDir = function(name, config, callback) {
   var localDir = config.localDir;
@@ -193,7 +239,8 @@ Functions.prototype._uploadLocalDir = function(name, config, callback) {
   if (!is.string(localDir)) {
     callback(new Error('A localDir string must be provided.'));
     return;
-  } else if (!is.string(stageBucket)) {
+  }
+  if (!is.string(stageBucket)) {
     callback(new Error('A stageBucket string must be provided.'));
     return;
   }
@@ -246,7 +293,7 @@ Functions.prototype.cloudfunction = function(name, options) {
  * @example
  * var config = {};
  *
- * functions.createFunction(name, config, function(err, operation, apiResponse) {
+ * functions.createFunction(name, config, function(err, operation) {
  *   if (!err) {
  *     // The Cloud Function "create" operation was started successfully.
  *   }
@@ -276,15 +323,8 @@ Functions.prototype.cloudfunction = function(name, options) {
 Functions.prototype.createFunction = function(name, config, callback) {
   var self = this;
 
-  config = extend({
-    projectId: this.projectId,
-    region: this.region
-  }, config);
-
-  var location = this._formatLocation(config.projectId, config.region);
-  var body = extend(config, {
-    name: this._formatName(config.projectId, config.region, name)
-  });
+  var body = this._prepareFunctionBody(name, config);
+  var location = this._formatLocation(body.projectId, body.region);
 
   var makeRequest = function(err, gcsUrl) {
     if (err) {
@@ -296,28 +336,7 @@ Functions.prototype.createFunction = function(name, config, callback) {
       body.gcsUrl = gcsUrl;
     }
 
-    if (body.gcsTrigger) {
-      body.gcsTrigger = self._formatGcsTrigger(body.gcsTrigger);
-    } else if (body.pubsubTrigger) {
-      body.pubsubTrigger = self._formatPubsubTrigger(body.pubsubTrigger);
-    } else if (body.httpsTrigger) {
-      body.httpsTrigger = {
-        url: self._formatHttpsTrigger(
-          body.projectId,
-          body.region,
-          name
-        )
-      };
-    }
-
-    if (body.timeout) {
-      body.timeout = {
-        seconds: body.timeout
-      };
-    }
-
-    delete body.projectId;
-    delete body.region;
+    this._formatFunctionBody(name, body, gcsUrl);
 
     self.api.Functions.createFunction(
       location,
@@ -330,8 +349,8 @@ Functions.prototype.createFunction = function(name, config, callback) {
         var operation = self.operation(response.name);
         operation.metadata = response;
 
-        // Intercept the "complete" event to decode and format the results of the
-        // operation for the user.
+        // Intercept the "complete" event to decode and format the results of
+        // the operation for the user.
         eventsIntercept.patch(operation);
         operation.intercept('complete', function(metadata, callback) {
           var response = metadata.response;
@@ -359,52 +378,121 @@ Functions.prototype.createFunction = function(name, config, callback) {
 };
 
 /**
- * TODO
+ * Get a list of the functions registered to your project. You may optionally
+ * provide a query object as the second argument to customize the response.
+ *
+ * @param {object=} query - Query object.
+ * @param {boolean} options.autoPaginate - Have pagination handled
+ *     automatically. Default: true.
+ * @param {number} options.maxApiCalls - Maximum number of API calls to make.
+ * @param {number} options.maxResults - Maximum number of results to return.
+ * @param {number} query.pageSize - Max number of results to return.
+ * @param {string} query.pageToken - Page token.
+ * @param {function=} callback - The callback function.
+ * @param {?error} callback.err - An error from the API call, may be null.
+ * @param {module:functions/cloudfunction[]} callback.cloudfunctions - The list
+ *     of Cloud Functions returned.
+ * @param {object} callback.apiResponse - The full API response from the
+ *     service.
+ *
+ * @example
+ * functions.getFunctions(function(err, cloudfunctions) {
+ *   if (!err) {
+ *     // cloudfunctions is an array of Cloud Function objects.
+ *   }
+ * });
+ *
+ * //-
+ * // Customize the query.
+ * //-
+ * functions.getFunctions({
+ *   pageSize: 3
+ * }, function(err, cloudfunctions) {});
+ *
+ * //-
+ * // To control how many API requests are made and page through the results
+ * // manually, set `autoPaginate` to `false`.
+ * //-
+ * var callback = function(err, cloudfunctions, nextQuery, apiResponse) {
+ *   if (nextQuery) {
+ *     // More results exist.
+ *     functions.getFunctions(nextQuery, callback);
+ *   }
+ * };
+ *
+ * functions.getFunctions({
+ *   autoPaginate: false
+ * }, callback);
+ *
+ * //-
+ * // If the callback is omitted, we'll return a Promise.
+ * //-
+ * functions.getFunctions().then(function(data) {
+ *   var cloudfunctions = data[0];
+ * });
  */
 Functions.prototype.getFunctions = function(options, callback) {
-  if (is.functions(options)) {
+  var self = this;
+  if (is.function(options)) {
     callback = options;
     options = {};
   }
 
-  throw new Error('Not yet implemented');
+  options = extend({
+    projectId: this.projectId,
+    region: this.region
+  }, options);
+
+  var location = this._formatLocation(options.projectId, options.region);
+
+  this.functions.api.Functions.listFunctions(
+    location,
+    options,
+    function(err, response) {
+      if (err) {
+        callback(err, null, response);
+        return;
+      }
+      var functions = response.functions || [];
+      functions = functions.map(function(cloudfunction) {
+        var name = cloudfunction.name;
+        name = name.substring(name.lastIndexOf('/') + 1);
+        return self.cloudfunction(name, cloudfunction);
+      });
+      callback(null, functions, response.nextPageToken, response);
+    }
+  );
 };
 
 /**
- * TODO
+ * Get a list of the {module:functions/cloudfunction} objects registered to your
+ * project as a readable object stream.
+ *
+ * @param {object=} query - Configuration object. See
+ *     {module:functions#getFunctions} for a complete list of options.
+ * @return {stream}
+ *
+ * @example
+ * functions.getFunctionsStream()
+ *   .on('error', console.error)
+ *   .on('data', function(cloudfunction) {
+ *     // cloudfunction is a Cloud Function object.
+ *   })
+ *   .on('end', function() {
+ *     // All cloudfunctions retrieved.
+ *   });
+ *
+ * //-
+ * // If you anticipate many results, you can end a stream early to prevent
+ * // unnecessary processing and API requests.
+ * //-
+ * functions.getFunctionsStream()
+ *   .on('data', function(cloudfunction) {
+ *     this.end();
+ *   });
  */
-Functions.prototype.getFunctionsStream = function(options, callback) {
-  if (is.functions(options)) {
-    callback = options;
-    options = {};
-  }
-
-  throw new Error('Not yet implemented');
-};
-
-/**
- * TODO
- */
-Functions.prototype.getOperations = function(options, callback) {
-  if (is.functions(options)) {
-    callback = options;
-    options = {};
-  }
-
-  throw new Error('Not yet implemented');
-};
-
-/**
- * TODO
- */
-Functions.prototype.getOperationsStream = function(options, callback) {
-  if (is.functions(options)) {
-    callback = options;
-    options = {};
-  }
-
-  throw new Error('Not yet implemented');
-};
+Functions.prototype.getFunctionsStream =
+  common.paginator.streamify('getFunctions');
 
 /*! Developer Documentation
  *
