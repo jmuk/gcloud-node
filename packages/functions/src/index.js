@@ -25,7 +25,6 @@ var common = require('@google-cloud/common');
 var eventsIntercept = require('events-intercept');
 var extend = require('extend');
 var is = require('is');
-var lro = require('google-gax').lro;
 var Storage = require('@google-cloud/storage');
 var uuid = require('node-uuid');
 var v1beta2 = require('./v1beta2');
@@ -41,8 +40,6 @@ var CloudFunction = require('./cloudfunction.js');
  * @private
  */
 var Operation = require('./operation.js');
-
-lro.ALL_SCOPES.push('https://www.googleapis.com/auth/cloud-platform');
 
 /**
  * <p class="notice">
@@ -82,16 +79,11 @@ function Functions(options) {
   }
   this.storage = new Storage(storageConfig);
 
-  var operationsOptions = extend({}, options, {
-    servicePath: options.servicePath || 'cloudfunctions.googleapis.com'
-  });
   this.builders = {
-    Functions: v1beta2(options),
-    Operations: lro(operationsOptions)
+    Functions: v1beta2(options)
   };
   this.api = {
-    Functions: this.builders.Functions.cloudFunctionsServiceApi(options),
-    Operations: this.builders.Operations.operationsApi(operationsOptions)
+    Functions: this.builders.Functions.cloudFunctionsServiceClient(options),
   };
 }
 
@@ -338,36 +330,10 @@ Functions.prototype.createFunction = function(name, config, callback) {
 
     this._formatFunctionBody(name, body, gcsUrl);
 
-    self.api.Functions.createFunction(
-      location,
-      body,
-      function(err, response) {
-        if (err) {
-          callback(err, null, response);
-          return;
-        }
-        var operation = self.operation(response.name);
-        operation.metadata = response;
-
-        // Intercept the "complete" event to decode and format the results of
-        // the operation for the user.
-        eventsIntercept.patch(operation);
-        operation.intercept('complete', function(metadata, callback) {
-          var response = metadata.response;
-
-          var cloudfunction;
-          if (response) {
-            var value = response.value;
-            cloudfunction = self.builders.Functions.CloudFunction.decode(value);
-            cloudfunction = self.cloudfunction(name, cloudfunction);
-          }
-
-          callback(null, cloudfunction, metadata);
-        });
-
-        callback(null, operation, response);
-      }
-    );
+    self.api.Functions.createFunction({
+      location: location,
+      function: body
+    }, callback);
   };
 
   if (body.localDir) {
@@ -445,23 +411,9 @@ Functions.prototype.getFunctions = function(options, callback) {
 
   var location = this._formatLocation(options.projectId, options.region);
 
-  this.functions.api.Functions.listFunctions(
-    location,
-    options,
-    function(err, response) {
-      if (err) {
-        callback(err, null, response);
-        return;
-      }
-      var functions = response.functions || [];
-      functions = functions.map(function(cloudfunction) {
-        var name = cloudfunction.name;
-        name = name.substring(name.lastIndexOf('/') + 1);
-        return self.cloudfunction(name, cloudfunction);
-      });
-      callback(null, functions, response.nextPageToken, response);
-    }
-  );
+  this.functions.api.Functions.listFunctions({
+    location: location
+  }, options, callback);
 };
 
 /**

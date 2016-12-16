@@ -30,7 +30,7 @@ function fakeV1Beta2() {
   }
 
   return {
-    cloudFunctionsServiceApi: util.noop
+    cloudFunctionsServiceClient: util.noop
   };
 }
 
@@ -87,7 +87,7 @@ describe('Functions', function() {
         assert.strictEqual(options, OPTIONS);
 
         return {
-          cloudFunctionsServiceApi: function(options) {
+          cloudFunctionsServiceClient: function(options) {
             assert.strictEqual(options, OPTIONS);
             return expectedFunctionsService;
           }

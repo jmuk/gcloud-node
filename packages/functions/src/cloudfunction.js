@@ -108,10 +108,10 @@ CloudFunction.prototype.call = function(data, options, callback) {
     }
   }
 
-  this.functions.api.Functions.callFunction(
-    this.metadata.name,
-    data,
-    options,
+  this.functions.api.Functions.callFunction({
+    name: this.metadata.name,
+    data: data
+  }, options,
     function(err, response) {
       if (err) {
         callback(err, null, response);
@@ -211,19 +211,9 @@ CloudFunction.prototype.delete = function(options, callback) {
     options = {};
   }
 
-  this.functions.api.Functions.deleteFunction(
-    this.metadata.name,
-    options,
-    function(err, response) {
-      if (err) {
-        callback(err, null, response);
-        return;
-      }
-      var operation = self.functions.operation(response.name);
-      operation.metadata = response;
-      callback(null, operation, response);
-    }
-  );
+  this.functions.api.Functions.deleteFunction({
+    name: this.metadata.name
+  }, options, callback);
 };
 
 /**
@@ -264,9 +254,9 @@ CloudFunction.prototype.get = function(options, callback) {
     options = {};
   }
 
-  this.functions.api.Functions.getFunction(
-    this.metadata.name,
-    options,
+  this.functions.api.Functions.getFunction({
+    name: this.metadata.name
+  }, options,
     function(err, response) {
       if (err) {
         callback(err, null, response);
@@ -328,35 +318,10 @@ CloudFunction.prototype.update = function(config, callback) {
   var body = this._prepareFunctionBody(this.name, config);
   this._formatFunctionBody(this.name, body);
 
-  this.functions.api.Functions.updateFunction(
-    this.metadata.name,
-    config,
-    function(err, response) {
-      if (err) {
-        callback(err, null, response);
-        return;
-      }
-      var operation = self.operation(response.name);
-      operation.metadata = response;
-
-      // Intercept the "complete" event to decode and format the results of the
-      // operation for the user.
-      eventsIntercept.patch(operation);
-      operation.intercept('complete', function(metadata, callback) {
-        var response = metadata.response;
-
-        var cloudfunction;
-        if (response) {
-          var value = response.value;
-          cloudfunction = self.builders.Functions.CloudFunction.decode(value);
-          extend(self.metadata, cloudfunction);
-        }
-
-        callback(null, self, metadata);
-      });
-
-      callback(null, operation, response);
-    });
+  this.functions.api.Functions.updateFunction({
+    name: this.metadata.name,
+    function: config
+  }, callback);
 };
 
 /*! Developer Documentation

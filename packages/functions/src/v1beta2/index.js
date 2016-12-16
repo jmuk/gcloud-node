@@ -15,7 +15,7 @@
  */
 'use strict';
 
-var cloudFunctionsServiceApi = require('./cloud_functions_service_api');
+var cloudFunctionsServiceClient = require('./cloud_functions_service_client');
 var extend = require('extend');
 var gax = require('google-gax');
 
@@ -24,9 +24,9 @@ function v1beta1(options) {
     scopes: v1beta1.ALL_SCOPES
   }, options);
   var gaxGrpc = gax.grpc(options);
-  return cloudFunctionsServiceApi(gaxGrpc);
+  return cloudFunctionsServiceClient(gaxGrpc);
 }
 
-v1beta1.SERVICE_ADDRESS = cloudFunctionsServiceApi.SERVICE_ADDRESS;
-v1beta1.ALL_SCOPES = cloudFunctionsServiceApi.ALL_SCOPES;
+v1beta1.SERVICE_ADDRESS = cloudFunctionsServiceClient.SERVICE_ADDRESS;
+v1beta1.ALL_SCOPES = cloudFunctionsServiceClient.ALL_SCOPES;
 module.exports = v1beta1;
